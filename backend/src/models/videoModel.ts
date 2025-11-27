@@ -1,71 +1,74 @@
-// Simple in-memory storage for videos and categories
-// This can be replaced with a proper database later
-
-export interface Video {
-  id: string;
-  title: string;
-  description: string;
-  publishedAt: string;
-  channelId: string;
-  channelTitle: string;
-  categoryId?: string;
-  tags?: string[];
-  createdAt: Date;
-}
-
-export interface Category {
-  id: string;
-  name: string;
-  videoCount: number;
-}
-
-export interface CategoryWithVideos {
-  id: string;
-  name: string;
-  videos: Video[];
-}
+// MongoDB storage for videos and categories using Mongoose
+import VideoModel from "./VideoSchema.js";
+import { Video, CategoryWithVideos } from "./videoModelTypes.js";
 
 class VideoStore {
-  private videos: Video[] = [];
-  private categories: Category[] = [];
-
-  // Save a video to the store
-  saveVideo(video: Omit<Video, "createdAt">): Video {
-    const newVideo: Video = {
+  // Save a video to the database
+  async saveVideo(video: Omit<Video, "createdAt">): Promise<Video> {
+    const newVideo = new VideoModel({
       ...video,
       createdAt: new Date(),
-    };
+    });
 
-    this.videos.push(newVideo);
-    return newVideo;
+    return await newVideo.save();
   }
 
-  // Save multiple videos to the store
-  saveVideos(videos: Omit<Video, "createdAt">[]): Video[] {
-    return videos.map((video) => this.saveVideo(video));
+  // Save multiple videos to the database using bulkWrite to prevent duplicates
+  async saveVideos(videos: Omit<Video, "createdAt">[]): Promise<Video[]> {
+    const videosToSave = videos.map((video) => ({
+      ...video,
+      createdAt: new Date(),
+    }));
+
+    // Use bulkWrite with upsert to prevent duplicates
+    const bulkOps = videosToSave.map((video) => ({
+      updateOne: {
+        filter: { id: video.id }, // Use YouTube video ID as the unique identifier
+        update: { $set: video },
+        upsert: true,
+      },
+    }));
+
+    try {
+      await VideoModel.bulkWrite(bulkOps, { ordered: false });
+      // Since bulkWrite doesn't return the documents, we need to fetch them
+      // Return the videos that were processed by querying them back
+      const videoIds = videosToSave.map((video) => video.id);
+      return await VideoModel.find({ id: { $in: videoIds } });
+    } catch (error) {
+      console.error("Error during bulk write operation:", error);
+      // Fallback to insertMany if bulkWrite fails
+      const insertedVideos = await VideoModel.insertMany(videosToSave, {
+        ordered: false,
+      });
+      return insertedVideos;
+    }
   }
 
-  // Get all videos
-  getAllVideos(): Video[] {
-    return [...this.videos];
+  // Get all videos from the database
+  async getAllVideos(): Promise<Video[]> {
+    return await VideoModel.find({});
   }
 
-  // Get videos by channel ID
-  getVideosByChannel(channelId: string): Video[] {
-    return this.videos.filter((video) => video.channelId === channelId);
+  // Get videos by channel ID from the database
+  async getVideosByChannel(channelId: string): Promise<Video[]> {
+    return await VideoModel.find({ channelId });
   }
 
-  // Clear all videos (useful for testing)
-  clearVideos(): void {
-    this.videos = [];
+  // Clear all videos from the database (useful for testing)
+  async clearVideos(): Promise<void> {
+    await VideoModel.deleteMany({});
   }
 
   // Create or update categories based on video data
-  categorizeVideos(videos: Video[]): CategoryWithVideos[] {
-    const categoryMap: Record<string, CategoryWithVideos> = {};
-    // console.log(videos);
+  async categorizeVideos(videos?: Video[]): Promise<CategoryWithVideos[]> {
+    // If videos are provided, categorize only those videos
+    // Otherwise, get all videos from the database (for backward compatibility)
+    const videosToCategorize = videos || (await this.getAllVideos());
 
-    videos.forEach((video) => {
+    const categoryMap: Record<string, CategoryWithVideos> = {};
+
+    videosToCategorize.forEach((video) => {
       // For simplicity, we'll use the YouTube category ID as our category
       // In a real application, you might want to use tags or NLP to categorize
       const categoryName = video.categoryId || "Uncategorized";

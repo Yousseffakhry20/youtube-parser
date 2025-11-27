@@ -33,7 +33,7 @@ export class YouTubeService {
    * @param username The username or handle (e.g., "@username")
    * @returns The channel ID
    */
-  async resolveChannelId(username: string): Promise<string> {
+  async resolveChannelId(username: string): Promise<string | null> {
     try {
       const youtube = this.getYouTubeClient();
 
@@ -72,21 +72,20 @@ export class YouTubeService {
         }
       }
 
-      throw new Error(`Could not resolve channel ID for username: ${username}`);
+      // If we can't resolve the channel ID, return null instead of throwing an error
+      console.warn(`Could not resolve channel ID for username: ${username}`);
+      return null;
     } catch (error) {
       console.error("Error resolving channel ID:", error);
-      throw new Error(
-        `Failed to resolve channel ID for username ${username}: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`
-      );
+      // Return null instead of throwing an error
+      return null;
     }
   }
 
   /**
    * Fetch all videos from a YouTube channel
    * @param channelIdentifier The channel ID or username (with @)
-   * @returns Array of videos from the channel
+   * @returns Array of videos from the channel, or empty array if channel not found
    */
   async fetchChannelVideos(channelIdentifier: string): Promise<YouTubeVideo[]> {
     try {
@@ -95,7 +94,15 @@ export class YouTubeService {
 
       // If it's a username (starts with @), resolve the channel ID
       if (channelIdentifier.startsWith("@")) {
-        channelId = await this.resolveChannelId(channelIdentifier);
+        const resolvedId = await this.resolveChannelId(channelIdentifier);
+        if (!resolvedId) {
+          // If we can't resolve the channel ID, return empty array instead of throwing an error
+          console.warn(
+            `Skipping channel ${channelIdentifier} - could not resolve channel ID`
+          );
+          return [];
+        }
+        channelId = resolvedId;
       }
 
       // Step 1: Search channel by ID with contentDetails to fetch uploads ID
@@ -108,7 +115,9 @@ export class YouTubeService {
         !channelResponse.data.items ||
         channelResponse.data.items.length === 0
       ) {
-        throw new Error("Channel not found");
+        // If channel not found, return empty array instead of throwing an error
+        console.warn(`Skipping channel ${channelId} - channel not found`);
+        return [];
       }
 
       const channel: YouTubeChannel = {
@@ -121,7 +130,11 @@ export class YouTubeService {
         channelResponse.data.items[0].contentDetails?.relatedPlaylists?.uploads;
 
       if (!uploadsPlaylistId) {
-        throw new Error("Could not find uploads playlist for channel");
+        // If we can't get the uploads playlist, return empty array instead of throwing an error
+        console.warn(
+          `Skipping channel ${channelId} - could not find uploads playlist`
+        );
+        return [];
       }
 
       // Step 2: Search playlist items with the uploads ID
@@ -169,11 +182,8 @@ export class YouTubeService {
       return videos;
     } catch (error) {
       console.error("Error fetching YouTube videos:", error);
-      throw new Error(
-        `Failed to fetch videos from channel: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`
-      );
+      // Return empty array instead of throwing an error
+      return [];
     }
   }
 }
