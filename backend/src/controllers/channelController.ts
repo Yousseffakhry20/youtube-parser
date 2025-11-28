@@ -65,12 +65,13 @@ export class ChannelController {
         });
       }
 
-      // Fetch videos from all channels
-      const allVideos: YouTubeVideo[] = [];
-      for (const identifier of channelIdentifiers) {
-        const videos = await youtubeService.fetchChannelVideos(identifier);
-        allVideos.push(...videos);
-      }
+      // Fetch videos from all channels in parallel for better performance
+      const videoPromises = channelIdentifiers.map(identifier => 
+        youtubeService.fetchChannelVideos(identifier)
+      );
+      
+      const videoArrays = await Promise.all(videoPromises);
+      const allVideos = videoArrays.flat();
 
       // Check if we got any videos at all
       if (allVideos.length === 0) {
@@ -79,44 +80,13 @@ export class ChannelController {
         });
       }
 
-      // Convert YouTube videos to our video model (without createdAt)
-      const videosToSave = allVideos.map((video: YouTubeVideo) => ({
-        id: video.id,
-        title: video.title,
-        description: video.description,
-        publishedAt: video.publishedAt,
-        channelId: video.channelId,
-        channelTitle: video.channelTitle,
-        categoryId: video.categoryId,
-        tags: video.tags,
-      }));
-
-      // Save videos to our database
-      const savedVideos = await videoStore.saveVideos(videosToSave);
-
-      // Convert saved videos to the format expected by categorizeVideos
-      const videosForCategorization: Video[] = savedVideos.map((video) => ({
-        id: video.id,
-        title: video.title,
-        description: video.description,
-        publishedAt: video.publishedAt,
-        channelId: video.channelId,
-        channelTitle: video.channelTitle,
-        categoryId: video.categoryId,
-        tags: video.tags,
-        createdAt: video.createdAt,
-      }));
-
-      // Categorize ONLY the newly fetched videos, not all videos in the database
-      const categorizedVideos = await videoStore.categorizeVideos(
-        videosForCategorization
+      // Transform and categorize videos using helper method
+      const result = await this.transformAndCategorizeVideos(
+        allVideos,
+        channelIdentifiers
       );
 
-      // Return the categorized videos along with channel identifiers for pagination
-      return res.json({
-        categories: categorizedVideos,
-        channelIdentifiers: channelIdentifiers,
-      });
+      return res.json(result);
     } catch (error) {
       console.error("Error processing multiple channel videos:", error);
       return res.status(500).json({
@@ -126,88 +96,7 @@ export class ChannelController {
     }
   }
 
-  /**
-   * Fetch videos from a single YouTube channel (kept for backward compatibility)
-   */
-  async getChannelVideos(req: Request, res: Response) {
-    try {
-      const { channelUrl } = req.query;
-
-      // Validate input
-      if (!channelUrl || typeof channelUrl !== "string") {
-        return res.status(400).json({
-          error: "Missing required query parameter: channelUrl",
-        });
-      }
-
-      // Extract channel identifier from URL
-      const channelIdentifier = this.extractChannelIdentifier(channelUrl);
-
-      if (!channelIdentifier) {
-        return res.status(400).json({
-          error:
-            "Invalid YouTube channel URL. Please provide a valid channel URL.",
-        });
-      }
-
-      // Fetch videos from YouTube
-      const youtubeVideos = await youtubeService.fetchChannelVideos(
-        channelIdentifier
-      );
-
-      // Check if we got any videos
-      if (youtubeVideos.length === 0) {
-        return res.status(404).json({
-          error: "No videos found for the provided channel",
-        });
-      }
-
-      // Convert YouTube videos to our video model (without createdAt)
-      const videosToSave = youtubeVideos.map((video: YouTubeVideo) => ({
-        id: video.id,
-        title: video.title,
-        description: video.description,
-        publishedAt: video.publishedAt,
-        channelId: video.channelId,
-        channelTitle: video.channelTitle,
-        categoryId: video.categoryId,
-        tags: video.tags,
-      }));
-
-      // Save videos to our database
-      const savedVideos = await videoStore.saveVideos(videosToSave);
-
-      // Convert saved videos to the format expected by categorizeVideos
-      const videosForCategorization: Video[] = savedVideos.map((video) => ({
-        id: video.id,
-        title: video.title,
-        description: video.description,
-        publishedAt: video.publishedAt,
-        channelId: video.channelId,
-        channelTitle: video.channelTitle,
-        categoryId: video.categoryId,
-        tags: video.tags,
-        createdAt: video.createdAt,
-      }));
-
-      // Categorize ONLY the newly fetched videos, not all videos in the database
-      const categorizedVideos = await videoStore.categorizeVideos(
-        videosForCategorization
-      );
-
-      // Return the categorized videos along with channel identifier for pagination
-      return res.json({
-        categories: categorizedVideos,
-        channelIdentifiers: [channelIdentifier],
-      });
-    } catch (error) {
-      console.error("Error processing channel videos:", error);
-      return res.status(500).json({
-        error:
-          error instanceof Error ? error.message : "An unknown error occurred",
-      });
-    }
-  }
+ 
 
   /**
    * Get paginated videos for specific channels and category
@@ -332,6 +221,53 @@ export class ChannelController {
           error instanceof Error ? error.message : "An unknown error occurred",
       });
     }
+  }
+
+  /**
+   * Helper method to transform YouTube videos and categorize them
+   * Reduces code duplication between getMultipleChannelVideos and getChannelVideos
+   */
+  private async transformAndCategorizeVideos(
+    youtubeVideos: YouTubeVideo[],
+    channelIdentifiers: string[]
+  ) {
+    // Convert YouTube videos to our video model (without createdAt)
+    const videosToSave = youtubeVideos.map((video: YouTubeVideo) => ({
+      id: video.id,
+      title: video.title,
+      description: video.description,
+      publishedAt: video.publishedAt,
+      channelId: video.channelId,
+      channelTitle: video.channelTitle,
+      categoryId: video.categoryId,
+      tags: video.tags,
+    }));
+
+    // Save videos to our database
+    const savedVideos = await videoStore.saveVideos(videosToSave);
+
+    // Convert saved videos to the format expected by categorizeVideos
+    const videosForCategorization: Video[] = savedVideos.map((video) => ({
+      id: video.id,
+      title: video.title,
+      description: video.description,
+      publishedAt: video.publishedAt,
+      channelId: video.channelId,
+      channelTitle: video.channelTitle,
+      categoryId: video.categoryId,
+      tags: video.tags,
+      createdAt: video.createdAt,
+    }));
+
+    // Categorize ONLY the newly fetched videos, not all videos in the database
+    const categorizedVideos = await videoStore.categorizeVideos(
+      videosForCategorization
+    );
+
+    return {
+      categories: categorizedVideos,
+      channelIdentifiers,
+    };
   }
 
   /**

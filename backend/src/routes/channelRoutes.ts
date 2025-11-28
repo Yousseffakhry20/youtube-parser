@@ -4,15 +4,6 @@ import { ChannelController } from "../controllers/channelController.js";
 const router = Router();
 const channelController = new ChannelController();
 
-/**
- * @route GET /api/channel/videos
- * @desc Fetch all videos from a YouTube channel (backward compatibility)
- * @param {string} channelUrl - The URL of the YouTube channel
- * @returns {object} Categories with their videos
- */
-router.get("/channel/videos", (req, res) =>
-  channelController.getChannelVideos(req, res)
-);
 
 /**
  * @route GET /api/channels/videos
