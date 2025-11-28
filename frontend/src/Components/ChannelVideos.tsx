@@ -1,45 +1,14 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
 import * as Tabs from "@radix-ui/react-tabs";
+import { useQuery } from "@tanstack/react-query";
 import "./ChannelVideos.css";
-
-interface Video {
-  id: string;
-  title: string;
-  description: string;
-  publishedAt: string;
-  channelId: string;
-  channelTitle: string;
-  categoryId?: string;
-  tags?: string[];
-  createdAt: string;
-}
-
-interface CategoryWithVideos {
-  id: string;
-  name: string;
-  videos: Video[];
-}
-
-interface PaginatedVideos {
-  videos: Video[];
-  pagination: {
-    currentPage: number;
-    totalPages: number;
-    totalCount: number;
-    hasNext: boolean;
-    hasPrev: boolean;
-  };
-}
-
-interface ApiError {
-  response?: {
-    data?: {
-      error?: string;
-    };
-  };
-  message?: string;
-}
+import { GetPaginatedVideos } from "../APIs/GetPaginatedVideos";
+import { GetChannelVideos } from "../APIs/GetChannelVideos";
+import type {
+  ApiError,
+  CategoryWithVideos,
+  PaginatedVideos,
+} from "../Types/Types";
 
 const ChannelVideos: React.FC = () => {
   const [channelUrls, setChannelUrls] = useState<string[]>(["", "", ""]);
@@ -48,15 +17,7 @@ const ChannelVideos: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  const [paginatedVideos, setPaginatedVideos] = useState<Video[]>([]);
-  const [pagination, setPagination] = useState<{
-    currentPage: number;
-    totalPages: number;
-    totalCount: number;
-    hasNext: boolean;
-    hasPrev: boolean;
-  } | null>(null);
-  const [isLoadingPage, setIsLoadingPage] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const handleUrlChange = (index: number, value: string) => {
     const newUrls = [...channelUrls];
@@ -77,21 +38,16 @@ const ChannelVideos: React.FC = () => {
     setError("");
 
     try {
-      const response = await axios.get<{
-        categories: CategoryWithVideos[];
-        channelIdentifiers: string[];
-      }>(
-        `http://localhost:4000/api/channels/videos?channelUrls=${encodeURIComponent(
-          validUrls.join(",")
-        )}`
-      );
-      setCategories(response.data.categories);
-      setChannelIdentifiers(response.data.channelIdentifiers);
+      const response = await GetChannelVideos(validUrls);
+      setCategories(response.categories);
+      setChannelIdentifiers(response.channelIdentifiers);
 
       // Set the first category as active if available
-      if (response.data.categories.length > 0) {
-        setActiveCategory(response.data.categories[0].id);
+      if (response.categories.length > 0) {
+        setActiveCategory(response.categories[0].id);
       }
+      // Reset to first page when fetching new data
+      setCurrentPage(1);
     } catch (err) {
       const apiError = err as ApiError;
       setError(
@@ -105,64 +61,69 @@ const ChannelVideos: React.FC = () => {
     }
   };
 
-  // Fetch paginated videos for a specific category
-  const fetchPaginatedVideos = async (
-    categoryId: string | null,
-    page: number = 1
-  ) => {
-    if (channelIdentifiers.length === 0) return;
+  // React Query hook for fetching paginated videos
+  const {
+    data: paginatedVideosData,
+    isLoading: isLoadingPage,
+    isError,
+    error: queryError,
+  } = useQuery<PaginatedVideos, ApiError>({
+    queryKey: [
+      "paginatedVideos",
+      activeCategory,
+      currentPage,
+      channelIdentifiers,
+    ],
+    queryFn: async () => {
+      if (channelIdentifiers.length === 0) {
+        throw new Error("No channel identifiers provided");
+      }
 
-    setIsLoadingPage(true);
-
-    try {
       const params = new URLSearchParams({
         channelIdentifiers: channelIdentifiers.join(","),
-        page: page.toString(),
+        page: currentPage.toString(),
         limit: "20",
       });
 
-      if (categoryId) {
-        params.append("categoryId", categoryId);
+      if (activeCategory) {
+        params.append("categoryId", activeCategory);
       }
 
-      const response = await axios.get<PaginatedVideos>(
-        `http://localhost:4000/api/channels/paginated-videos?${params.toString()}`
-      );
-
-      setPaginatedVideos(response.data.videos);
-      setPagination(response.data.pagination);
-    } catch (err) {
-      const apiError = err as ApiError;
-      setError(
-        apiError.response?.data?.error ||
-          apiError.message ||
-          "Failed to fetch paginated videos."
-      );
-      console.error(err);
-    } finally {
-      setIsLoadingPage(false);
-    }
-  };
+      const response = await GetPaginatedVideos(params);
+      return response;
+    },
+    enabled: !!activeCategory && channelIdentifiers.length > 0, // Only run query when we have active category and channel identifiers
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
+  });
 
   // Handle tab change
   const handleTabChange = (categoryId: string) => {
     setActiveCategory(categoryId);
-    fetchPaginatedVideos(categoryId, 1); // Reset to first page when changing categories
+    setCurrentPage(1); // Reset to first page when changing categories
   };
 
   // Handle page change
   const handlePageChange = (page: number) => {
-    if (pagination && page >= 1 && page <= pagination.totalPages) {
-      fetchPaginatedVideos(activeCategory, page);
+    if (
+      paginatedVideosData?.pagination &&
+      page >= 1 &&
+      page <= paginatedVideosData.pagination.totalPages
+    ) {
+      setCurrentPage(page);
     }
   };
 
-  // Load first page of videos when active category changes
+  // Handle query errors
   useEffect(() => {
-    if (activeCategory && channelIdentifiers.length > 0) {
-      fetchPaginatedVideos(activeCategory, 1);
+    if (isError && queryError) {
+      setError(
+        queryError.response?.data?.error ||
+          queryError.message ||
+          "Failed to fetch paginated videos."
+      );
     }
-  }, [activeCategory, channelIdentifiers]);
+  }, [isError, queryError]);
 
   return (
     <div className="container mx-auto p-4">
@@ -243,10 +204,11 @@ const ChannelVideos: React.FC = () => {
               {/* Paginated Videos Display */}
               {isLoadingPage ? (
                 <div className="text-center py-8">Loading videos...</div>
-              ) : paginatedVideos.length > 0 ? (
+              ) : paginatedVideosData?.videos &&
+                paginatedVideosData.videos.length > 0 ? (
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {paginatedVideos.map((video) => (
+                    {paginatedVideosData.videos.map((video) => (
                       <div
                         key={video.id}
                         className="border border-gray-200 rounded-md p-4"
@@ -267,27 +229,38 @@ const ChannelVideos: React.FC = () => {
                   </div>
 
                   {/* Pagination Controls */}
-                  {pagination && (
+                  {paginatedVideosData.pagination && (
                     <div className="flex justify-center items-center mt-6 space-x-2">
                       <button
                         onClick={() =>
-                          handlePageChange(pagination.currentPage - 1)
+                          handlePageChange(
+                            paginatedVideosData.pagination.currentPage - 1
+                          )
                         }
-                        disabled={!pagination.hasPrev || isLoadingPage}
+                        disabled={
+                          !paginatedVideosData.pagination.hasPrev ||
+                          isLoadingPage
+                        }
                         className="px-3 py-1 border border-gray-300 rounded-md disabled:opacity-50"
                       >
                         Previous
                       </button>
 
                       <span className="mx-2">
-                        Page {pagination.currentPage} of {pagination.totalPages}
+                        Page {paginatedVideosData.pagination.currentPage} of{" "}
+                        {paginatedVideosData.pagination.totalPages}
                       </span>
 
                       <button
                         onClick={() =>
-                          handlePageChange(pagination.currentPage + 1)
+                          handlePageChange(
+                            paginatedVideosData.pagination.currentPage + 1
+                          )
                         }
-                        disabled={!pagination.hasNext || isLoadingPage}
+                        disabled={
+                          !paginatedVideosData.pagination.hasNext ||
+                          isLoadingPage
+                        }
                         className="px-3 py-1 border border-gray-300 rounded-md disabled:opacity-50"
                       >
                         Next

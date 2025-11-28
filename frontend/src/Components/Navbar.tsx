@@ -1,5 +1,5 @@
-import * as NavigationMenu from '@radix-ui/react-navigation-menu';
-import { Link } from 'react-router-dom';
+// import * as NavigationMenu from '@radix-ui/react-navigation-menu';
+import { Link } from "react-router-dom";
 
 const Navbar = () => {
   return (
@@ -10,7 +10,7 @@ const Navbar = () => {
           Youtube Parser
         </Link>
 
-        {/* Navigation Links */}
+        {/* Navigation Links
         <NavigationMenu.Root className="relative z-10 flex w-fit justify-end border-0">
           <NavigationMenu.List className="center m-0 flex list-none  p-1 ">
             <NavigationMenu.Item>
@@ -29,7 +29,7 @@ const Navbar = () => {
               </NavigationMenu.Link>
             </NavigationMenu.Item>
           </NavigationMenu.List>
-        </NavigationMenu.Root>
+        </NavigationMenu.Root> */}
       </div>
     </div>
   );
