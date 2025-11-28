@@ -1,0 +1,12 @@
+{
+  "installCommand": "npm install",
+  "version": 2,
+  "builds": [
+    {
+      "src": "/src/index.ts",
+      "use": "@vercel/nodejs",
+      "config": { "maxDuration": 300 }
+    }
+  ],
+  "routes": [{ "src": "/(.*)", "dest": "/" }]
+}
