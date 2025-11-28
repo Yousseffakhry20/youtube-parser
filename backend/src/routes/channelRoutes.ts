@@ -10,7 +10,7 @@ const channelController = new ChannelController();
  * @param {string} channelUrl - The URL of the YouTube channel
  * @returns {object} Categories with their videos
  */
-router.get("/api/channel/videos", (req, res) =>
+router.get("/channel/videos", (req, res) =>
   channelController.getChannelVideos(req, res)
 );
 
@@ -20,7 +20,7 @@ router.get("/api/channel/videos", (req, res) =>
  * @param {string} channelUrls - Comma-separated URLs of YouTube channels (max 3)
  * @returns {object} Categories with their videos
  */
-router.get("/api/channels/videos", (req, res) =>
+router.get("/channels/videos", (req, res) =>
   channelController.getMultipleChannelVideos(req, res)
 );
 
@@ -33,7 +33,7 @@ router.get("/api/channels/videos", (req, res) =>
  * @param {number} limit - Number of items per page (default: 20, max: 100)
  * @returns {object} Paginated videos with pagination metadata
  */
-router.get("/api/channels/paginated-videos", (req, res) =>
+router.get("/channels/paginated-videos", (req, res) =>
   channelController.getPaginatedVideos(req, res)
 );
 
@@ -42,7 +42,7 @@ router.get("/api/channels/paginated-videos", (req, res) =>
  * @desc Get all videos stored in the database
  * @returns {object} All videos
  */
-router.get("/api/videos", (req, res) =>
+router.get("/videos", (req, res) =>
   channelController.getAllVideos(req, res)
 );
 

@@ -33,7 +33,7 @@ app.get("/", (req, res) => {
 });
 
 // Add channel routes
-app.use("/", channelRoutes);
+app.use("/api", channelRoutes);
 
 const PORT = process.env.PORT || 4000;
 
