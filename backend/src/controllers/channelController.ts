@@ -308,12 +308,55 @@ export class ChannelController {
   }
 
   /**
-   * Get all videos stored in the database
+   * Get all videos stored in the database with optional filtering and pagination
    */
   async getAllVideos(req: Request, res: Response) {
     try {
-      const videos = await videoStore.getAllVideos();
-      return res.json({ videos });
+      const {
+        channelTitle,
+        categoryId,
+        page = "1",
+        limit = "20",
+      } = req.query;
+
+      // Validate pagination parameters
+      const pageNum = parseInt(page as string, 10);
+      const limitNum = parseInt(limit as string, 10);
+
+      if (isNaN(pageNum) || pageNum < 1) {
+        return res.status(400).json({
+          error: "Invalid page number. Must be a positive integer.",
+        });
+      }
+
+      if (isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
+        return res.status(400).json({
+          error: "Invalid limit. Must be between 1 and 100.",
+        });
+      }
+
+      // Build options object for filtering and pagination
+      const options: {
+        channelTitle?: string;
+        categoryId?: string;
+        page: number;
+        limit: number;
+      } = {
+        page: pageNum,
+        limit: limitNum,
+      };
+
+      // Add optional filters
+      if (channelTitle && typeof channelTitle === "string") {
+        options.channelTitle = channelTitle;
+      }
+
+      if (categoryId && typeof categoryId === "string") {
+        options.categoryId = categoryId;
+      }
+
+      const result = await videoStore.getAllVideos(options);
+      return res.json(result);
     } catch (error) {
       console.error("Error fetching videos:", error);
       return res.status(500).json({

@@ -45,9 +45,64 @@ class VideoStore {
     }
   }
 
-  // Get all videos from the database
-  async getAllVideos(): Promise<Video[]> {
-    return await VideoModel.find({});
+  // Get all videos from the database with optional filtering and pagination
+  async getAllVideos(options?: {
+    channelTitle?: string;
+    categoryId?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    videos: Video[];
+    pagination: {
+      currentPage: number;
+      totalPages: number;
+      totalCount: number;
+      hasNext: boolean;
+      hasPrev: boolean;
+    };
+  }> {
+    const page = options?.page || 1;
+    const limit = options?.limit || 20;
+    
+    // Build filter criteria
+    const filter: any = {};
+    
+    // Add channel title filter (case-insensitive partial match)
+    if (options?.channelTitle) {
+      filter.channelTitle = { $regex: options.channelTitle, $options: 'i' };
+    }
+    
+    // Add category ID filter
+    if (options?.categoryId) {
+      filter.categoryId = options.categoryId;
+    }
+    
+    // Calculate skip value for pagination
+    const skip = (page - 1) * limit;
+    
+    // Fetch paginated videos from database
+    const videos = await VideoModel.find(filter)
+      .sort({ publishedAt: -1 }) // Sort by newest first
+      .skip(skip)
+      .limit(limit)
+      .exec();
+    
+    // Get total count for pagination info
+    const totalCount = await VideoModel.countDocuments(filter).exec();
+    
+    // Calculate pagination metadata
+    const totalPages = Math.ceil(totalCount / limit);
+    
+    return {
+      videos,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalCount,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+      },
+    };
   }
 
   // Get videos by channel ID from the database
@@ -64,7 +119,13 @@ class VideoStore {
   async categorizeVideos(videos?: Video[]): Promise<CategoryWithVideos[]> {
     // If videos are provided, categorize only those videos
     // Otherwise, get all videos from the database (for backward compatibility)
-    const videosToCategorize = videos || (await this.getAllVideos());
+    let videosToCategorize: Video[];
+    if (videos) {
+      videosToCategorize = videos;
+    } else {
+      const result = await this.getAllVideos();
+      videosToCategorize = result.videos;
+    }
 
     const categoryMap: Record<string, CategoryWithVideos> = {};
 

@@ -4,6 +4,7 @@ import './App.css'
 import Home from './Pages/Home'
 import Layout from './Components/Layout'
 import About from './Pages/About'
+import AllVideos from './Pages/AllVideos'
 
 function App() {
   
@@ -14,7 +15,7 @@ function App() {
       <Layout>
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/about" element={<About />} />
+          <Route path="/AllVideos" element={<AllVideos />} />
         </Routes>
       </Layout>
     </HashRouter>

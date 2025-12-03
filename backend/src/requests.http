@@ -1,0 +1,27 @@
+### Get all videos (default pagination)
+GET http://localhost:3000/api/videos
+
+###
+
+### Get videos with custom pagination
+GET http://localhost:4000/api/videos?page=1&limit=10
+
+###
+
+### Filter by channel title
+GET http://localhost:3000/api/videos?channelTitle=Tech
+
+###
+
+### Filter by category ID (e.g., Science & Technology = 28)
+GET http://localhost:3000/api/videos?categoryId=28
+
+###
+
+### Combined filters with pagination
+GET http://localhost:3000/api/videos?channelTitle=Gaming&categoryId=20&page=1&limit=30
+
+###
+
+### Test edge cases - page 2 with limit 5
+GET http://localhost:3000/api/videos?page=2&limit=5

@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import "./ChannelVideos.css";
 import { GetPaginatedVideos } from "../APIs/GetPaginatedVideos";
 import { GetChannelVideos } from "../APIs/GetChannelVideos";
+import VideoCard from "./VideoCard";
+import PaginationControls from "./PaginationControls";
 import type {
   ApiError,
   CategoryWithVideos,
@@ -209,63 +211,17 @@ const ChannelVideos: React.FC = () => {
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {paginatedVideosData.videos.map((video) => (
-                      <div
-                        key={video.id}
-                        className="border border-gray-200 rounded-md p-4"
-                      >
-                        <h4 className="font-medium">{video.title}</h4>
-                        <p className="text-sm text-gray-600 mt-1 line-clamp-2">
-                          {video.description}
-                        </p>
-                        <div className="text-xs text-gray-500 mt-2">
-                          Channel: {video.channelTitle}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          Published:{" "}
-                          {new Date(video.publishedAt).toLocaleDateString()}
-                        </div>
-                      </div>
+                      <VideoCard key={video.id} video={video} />
                     ))}
                   </div>
 
                   {/* Pagination Controls */}
                   {paginatedVideosData.pagination && (
-                    <div className="flex justify-center items-center mt-6 space-x-2">
-                      <button
-                        onClick={() =>
-                          handlePageChange(
-                            paginatedVideosData.pagination.currentPage - 1
-                          )
-                        }
-                        disabled={
-                          !paginatedVideosData.pagination.hasPrev ||
-                          isLoadingPage
-                        }
-                        className="px-3 py-1 border border-gray-300 rounded-md disabled:opacity-50"
-                      >
-                        Previous
-                      </button>
-
-                      <span className="mx-2">
-                        Page {paginatedVideosData.pagination.currentPage} of{" "}
-                        {paginatedVideosData.pagination.totalPages}
-                      </span>
-
-                      <button
-                        onClick={() =>
-                          handlePageChange(
-                            paginatedVideosData.pagination.currentPage + 1
-                          )
-                        }
-                        disabled={
-                          !paginatedVideosData.pagination.hasNext ||
-                          isLoadingPage
-                        }
-                        className="px-3 py-1 border border-gray-300 rounded-md disabled:opacity-50"
-                      >
-                        Next
-                      </button>
-                    </div>
+                    <PaginationControls
+                      pagination={paginatedVideosData.pagination}
+                      onPageChange={handlePageChange}
+                      isLoading={isLoadingPage}
+                    />
                   )}
                 </>
               ) : (

@@ -30,8 +30,12 @@ router.get("/channels/paginated-videos", (req, res) =>
 
 /**
  * @route GET /api/videos
- * @desc Get all videos stored in the database
- * @returns {object} All videos
+ * @desc Get all videos stored in the database with optional filtering and pagination
+ * @param {string} channelTitle - Channel title to filter by (optional, case-insensitive partial match)
+ * @param {string} categoryId - Category ID to filter by (optional)
+ * @param {number} page - Page number (default: 1)
+ * @param {number} limit - Number of items per page (default: 20, max: 100)
+ * @returns {object} Paginated videos with pagination metadata
  */
 router.get("/videos", (req, res) =>
   channelController.getAllVideos(req, res)
